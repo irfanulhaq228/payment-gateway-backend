@@ -1,5 +1,9 @@
 const jwt = require("jsonwebtoken");
 const adminModel = require("../Models/AdminModel");
+var getIP = require('ipware')().get_ip;
+const { lookup } = require('geoip-lite');
+const loginHistoryModel = require("../Models/LoginHistoryModel");
+const moment = require("moment");
 
 const createAdmin = async (req, res) => {
     try {
@@ -30,6 +34,24 @@ const loginAdmin = async (req, res) => {
         if (admin?.password !== password) {
             return res.status(400).json({ message: "Incorrect Email or Password" })
         }
+
+        
+    var ipInfo = getIP(req);
+    console.log(ipInfo);
+    const look = lookup(ipInfo?.clientIp);
+
+    
+    const city= `${look?.city}, ${look?.region} ${look?.country}`
+
+    // Create new user with hashed password
+    await loginHistoryModel.create({
+      ip: ipInfo?.clientIp,
+      city,
+      adminId: admin?._id,
+      loginDate: moment().format("DD MMM YYYY, hh:mm A")
+    });
+
+
         const adminId = admin?._id;
         const token = jwt.sign({ adminId }, process.env.SECRET_KEY, { expiresIn: '30d' });
         return res.status(200).json({ message: "Admin Logged In", token: token });
