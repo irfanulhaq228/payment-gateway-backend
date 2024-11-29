@@ -54,7 +54,7 @@ const loginAdmin = async (req, res) => {
 
         const adminId = admin?._id;
         const token = jwt.sign({ adminId }, process.env.SECRET_KEY, { expiresIn: '30d' });
-        return res.status(200).json({ message: "Admin Logged In", token: token });
+        return res.status(200).json({ message: "Admin Logged In", token: token, data:admin });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Server Error!" })
@@ -75,8 +75,34 @@ const getAllAdmins = async (req, res) => {
     }
 };
 
+
+
+
+
+
+const updateData = async (req, res) => {
+    try {
+        let id = req.params.id;
+
+
+        const data = await adminModel.findByIdAndUpdate(id,
+            { ...req.body, },
+            { new: true });
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+
+
+
+
+
 module.exports = {
     createAdmin,
     loginAdmin,
-    getAllAdmins
+    getAllAdmins,
+    updateData
 };
