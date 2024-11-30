@@ -1,4 +1,5 @@
 const Merchant = require('../Models/MerchantModel');
+const Admin = require('../Models/AdminModel');
 const jwt = require('jsonwebtoken');
 
 
@@ -108,6 +109,9 @@ const getDataById = async (req, res) => {
     }
 };
 
+
+
+
 // 4. Update 
 const updateData = async (req, res) => {
     try {
@@ -140,10 +144,83 @@ const deleteData = async (req, res) => {
     }
 };
 
+
+
+
+const loginData = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const data = await Merchant.findOne({ email });
+        if (!data) {
+            return res.status(400).json({ message: "Incorrect Email or Password" });
+        }
+        if (data?.block) {
+            return res.status(400).json({ message: "Merchant blocked from admin." });
+        }
+        if (data?.password !== password) {
+            return res.status(400).json({ message: "Incorrect Email or Password" })
+        }
+
+        const adminId = data?._id;
+        const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+        return res.status(200).json({ message: "Merchant Logged In", token: token, data: data });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Server Error!" })
+    }
+};
+
+
+
+
+
+// 3. Get  by id
+const verifyData = async (req, res) => {
+    try {
+        
+
+        const adminData = await Admin.findOne({apiKey:req.body.apiKey, secretKey: req.body.secretKey});
+
+        if(!adminData){
+            return res.status(400).json({ status:'fail' ,message: "Invalid API Key or Secret Key" });
+        }
+
+
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
+        }
+
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+        }
+
+        const data = await Merchant.findByIdAndUpdate(adminId,
+            { apiKey: req.body.apiKey },
+            { new: true });
+
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+
+
+
 module.exports = {
     createData,
     getAllData,
     getDataById,
     updateData,
     deleteData,
+    loginData,
+    verifyData
 };

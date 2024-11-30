@@ -8,6 +8,7 @@ const merchantSchema = new mongoose.Schema({
     userName: { type: String, required: false},
     phone: { type: String, required: false },
     email: { type: String, required: false },
+    password: { type: String, required: false },
     website: { type: String, required: false },
     bio: { type: String, required: false },
     accounts: { type: Number, required: false, default:0 },
