@@ -4,7 +4,7 @@ const authenticate = require('../Middleware/auth')
 
 const router=require('express').Router()
 
-router.get('/get',getAllData)
+router.get('/getAll',authenticate,getAllData)
 router.post('/create',createData)
 router.get('/get/:id',getDataById)
 router.put('/update/:id',updateData)

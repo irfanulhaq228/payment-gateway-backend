@@ -14,9 +14,10 @@ const createAdmin = async (req, res) => {
             return res.status(409).json({ message: "Email already exists" });
         }
 
+
         const admin = await adminModel.create({ email, password });
         const id = admin?._id;
-        const token = jwt.sign({ id }, process.env.SECRET_KEY, { expiresIn: '30d' });
+        const token = jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
         return res.status(200).json({ message: "Admin created successfully", token });
     } catch (error) {
         console.log(error);
@@ -35,31 +36,67 @@ const loginAdmin = async (req, res) => {
             return res.status(400).json({ message: "Incorrect Email or Password" })
         }
 
-        
-    var ipInfo = getIP(req);
-    console.log(ipInfo);
-    const look = lookup(ipInfo?.clientIp);
 
-    
-    const city= `${look?.city}, ${look?.region} ${look?.country}`
+        var ipInfo = getIP(req);
+        console.log(ipInfo);
+        const look = lookup(ipInfo?.clientIp);
 
-    // Create new user with hashed password
-    await loginHistoryModel.create({
-      ip: ipInfo?.clientIp,
-      city,
-      adminId: admin?._id,
-      loginDate: moment().format("DD MMM YYYY, hh:mm A")
-    });
+
+        const city = `${look?.city}, ${look?.region} ${look?.country}`
+
+        // Create new user with hashed password
+        await loginHistoryModel.create({
+            ip: ipInfo?.clientIp,
+            city,
+            adminId: admin?._id,
+            loginDate: moment().format("DD MMM YYYY, hh:mm A")
+        });
+
 
 
         const adminId = admin?._id;
-        const token = jwt.sign({ adminId }, process.env.SECRET_KEY, { expiresIn: '30d' });
-        return res.status(200).json({ message: "Admin Logged In", token: token, data:admin });
+        const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+        return res.status(200).json({ message: "Admin Logged In", token: token, data: admin });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Server Error!" })
     }
 };
+
+
+
+
+
+
+
+// 3. Get by id
+const getDataById = async (req, res) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
+        }
+
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
+        }
+
+        const data = await adminModel.findById(adminId);
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+
+
 
 const getAllAdmins = async (req, res) => {
     try {
@@ -82,10 +119,24 @@ const getAllAdmins = async (req, res) => {
 
 const updateData = async (req, res) => {
     try {
-        let id = req.params.id;
+
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
+        }
 
 
-        const data = await adminModel.findByIdAndUpdate(id,
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
+        }
+
+
+        const data = await adminModel.findByIdAndUpdate(adminId,
             { ...req.body, },
             { new: true });
         return res.status(200).json({ status: 'ok', data });
@@ -104,5 +155,6 @@ module.exports = {
     createAdmin,
     loginAdmin,
     getAllAdmins,
+    getDataById,
     updateData
 };

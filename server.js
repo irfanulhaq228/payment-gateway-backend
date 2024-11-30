@@ -6,6 +6,7 @@ const db = require("./db/db.js");
 
 const AdminRouter = require("./Routes/adminRoutes.js");
 const LoginHistoryRouter = require("./Routes/LoginHistoryRoutes.js");
+const MerchantRouter = require("./Routes/MerchantRoutes.js");
 
 // const UserRouter = require("./Routes/userRoutes.js");
 // const GameRouter = require("./Routes/gameRoutes.js");
@@ -37,6 +38,7 @@ app.get("/", (req, res) => {
 
 app.use("/admin", AdminRouter);
 app.use("/loginHistory", LoginHistoryRouter);
+app.use("/merchant", MerchantRouter);
 
 // app.use("/user", UserRouter);
 // app.use("/game", GameRouter);

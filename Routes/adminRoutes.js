@@ -1,11 +1,13 @@
 const express = require("express");
-const { createAdmin, getAllAdmins, loginAdmin, updateData } = require("../Controllers/AdminController");
+const { createAdmin, getAllAdmins, loginAdmin, updateData, getDataById } = require("../Controllers/AdminController");
+const authenticate = require("../Middleware/auth");
 
 const AdminRouter = express.Router();
 
-AdminRouter.post("/", createAdmin);
-AdminRouter.get("/", getAllAdmins);
+AdminRouter.post("/create", createAdmin);
+AdminRouter.get("/getAll", getAllAdmins);
+AdminRouter.post("/get",authenticate, getDataById);
 AdminRouter.post("/login", loginAdmin);
-AdminRouter.post("/update/:id", updateData);
+AdminRouter.put("/update",authenticate, updateData);
 
 module.exports = AdminRouter;

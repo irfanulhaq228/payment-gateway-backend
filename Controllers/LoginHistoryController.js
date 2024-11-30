@@ -2,7 +2,7 @@ const LoginHistory = require('../Models/LoginHistoryModel');
 const jwt = require('jsonwebtoken');
 
 
-// 1. Create tax
+// 1. Create 
 const createData = async (req, res) => {
     try {
 
@@ -19,23 +19,23 @@ const createData = async (req, res) => {
 };
 
 
-// 2. Get all taxs
+// 2. Get all s
 const getAllData = async (req, res) => {
     try {
          // Extract the token from the Authorization header
-        //  const token = req.header('Authorization')?.replace('Bearer ', '');
+         const token = req.header('Authorization')?.replace('Bearer ', '');
 
-        //  if (!token) {
-        //      return res.status(401).json({ status: 'fail', message: 'No token provided' });
-        //  }
+         if (!token) {
+             return res.status(401).json({ status: 'fail', message: 'No token provided' });
+         }
 
-         // Decode the token and extract the agent ID
-        //  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        //  const agentId = decoded.id; // Ensure the token contains `agentId`
-         const adminId = req.query.adminId; // Ensure the token contains `agentId`
- 
+
+         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+         const adminId = decoded.adminId; 
+
+
          if (!adminId) {
-             return res.status(400).json({ status: 'fail', message: 'Agent not found!' });
+             return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
          }
  
          // Find data created by the agent, sorted by `createdAt` in descending order
@@ -51,7 +51,7 @@ const getAllData = async (req, res) => {
 
 
 
-// 3. Get tax by id
+// 3. Get  by id
 const getDataById = async (req, res) => {
     try {
         const id = req.params.id;
@@ -62,7 +62,7 @@ const getDataById = async (req, res) => {
     }
 };
 
-// 4. Update tax
+// 4. Update 
 const updateData = async (req, res) => {
     try {
         let id = req.params.id;
@@ -77,7 +77,7 @@ const updateData = async (req, res) => {
     }
 };
 
-// 5. Delete tax
+// 5. Delete 
 const deleteData = async (req, res) => {
     try {
         const id = req.params.id;
