@@ -7,11 +7,11 @@ const db = require("./db/db.js");
 const AdminRouter = require("./Routes/adminRoutes.js");
 const LoginHistoryRouter = require("./Routes/LoginHistoryRoutes.js");
 const MerchantRouter = require("./Routes/MerchantRoutes.js");
+const BankRouter = require("./Routes/BankRoutes.js");
 
 // const UserRouter = require("./Routes/userRoutes.js");
 // const GameRouter = require("./Routes/gameRoutes.js");
 // const WebsiteRouter = require("./Routes/colorRoutes.js");
-// const BankRouter = require("./Routes/BankRoutes.js");
 // const DepositRouter = require("./Routes/DepositRoutes.js");
 // const WithdrawRouter = require("./Routes/WithdrawRoutes.js");
 // const BetRouter = require("./Routes/BetRoutes.js");
@@ -39,11 +39,11 @@ app.get("/", (req, res) => {
 app.use("/admin", AdminRouter);
 app.use("/loginHistory", LoginHistoryRouter);
 app.use("/merchant", MerchantRouter);
+app.use("/bank", BankRouter);
 
 // app.use("/user", UserRouter);
 // app.use("/game", GameRouter);
 // app.use("/website", WebsiteRouter);
-// app.use("/bank", BankRouter);
 // app.use("/deposit", DepositRouter);
 // app.use("/withdraw", WithdrawRouter);
 // app.use("/bet", BetRouter);

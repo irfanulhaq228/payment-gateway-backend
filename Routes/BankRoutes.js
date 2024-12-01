@@ -1,17 +1,17 @@
-const express = require("express");
 
-const { createBank, getAllBanks, deleteBank, updateBank, getAllActiveBanks, getBanks, getAdminsBank, getAdminsActiveBank } = require("../Controllers/BankController");
+const { getAllData, createData, getDataById, updateData, deleteData,  activeData }=require('../Controllers/BankController')
+const authenticate = require('../Middleware/auth')
+const { upload } = require('../Multer/Multer')
 
-const BankRouter = express.Router();
+const router=require('express').Router()
 
-BankRouter.post("/", createBank);
-BankRouter.get("/", getAllBanks);
-BankRouter.get("/all", getBanks);
-BankRouter.get("/admin", getAdminsBank);
-BankRouter.get("/admin/active", getAdminsActiveBank);
-BankRouter.get("/active/:id", getAllActiveBanks);
+router.get('/getAll',authenticate,getAllData)
+router.post('/create',upload.single('image'),authenticate,createData)
+router.get('/get/:id',getDataById)
+router.post('/active',authenticate,activeData)
+router.put('/update/:id',upload.single('image'),updateData)
+router.delete('/delete/:id',authenticate,deleteData)
 
-BankRouter.delete("/:id", deleteBank);
-BankRouter.patch("/:id", updateBank);
 
-module.exports = BankRouter; 
+module.exports=router
+

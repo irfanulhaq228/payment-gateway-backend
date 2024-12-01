@@ -1,133 +1,231 @@
-const jwt = require("jsonwebtoken");
-const bankModel = require("../Models/BankModel.js");
+const Bank = require('../Models/BankModel');
+const Merchant = require('../Models/MerchantModel');
+const jwt = require('jsonwebtoken');
 
-const createBank = async (req, res) => {
-    try {
-        const token = req.headers.authorization.split(' ')[1];
-        if (!token || token === "") {
-            return res.status(400).json({ message: 'No token provided' });
-        }
-        const id = jwt.verify(token, process.env.SECRET_KEY);
-        const userId = id?.id || null;
-        const adminId = id?.adminId || req.body.admin || null;
-        const bankData = { ...req.body, userId: userId, adminId: adminId };
-        const bank = new bankModel(bankData);
-        await bank.save();
-        return res.status(200).json({ message: "Bank added successfully", data: bank });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
-    }
-};
 
-const getAllBanks = async (req, res) => {
+// 1. Create 
+const createData = async (req, res) => {
     try {
-        const token = req.headers.authorization.split(' ')[1];
-        if (!token || token === "") {
-            return res.status(400).json({ message: 'No token provided' });
+
+
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
         }
-        const decoded = jwt.verify(token, process.env.SECRET_KEY);
-        const userId = decoded?.id || null;
-        const adminId = decoded?.adminId || null;
-        const banks = await bankModel.find({
-            userId: userId,
-            adminId: adminId
+
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+        const merchantData = await Bank.find({ merchantId:adminId }).sort({ createdAt: -1 });
+
+        const totalAmount = merchantData?.reduce((sum, item) => sum + Number(item.accountLimit), 0);
+
+        const totalAccountLimit=Number(totalAmount )+ Number(req.body.accountLimit)
+
+        const merchantLimit = await Merchant.findOne({ _id:adminId })
+
+
+
+        const accountLimit = merchantLimit?.accountLimit
+
+
+        
+
+        if (!merchantLimit?.verify) {
+            return res.status(400).json({ status: 'fail', message: 'Please verify your account!' });
+        }
+
+console.log(totalAccountLimit)
+console.log(accountLimit)
+
+        if (totalAccountLimit>accountLimit) {
+            return res.status(403).json({ status:'fail', message: 'Merchant has reached maximum limit of amount' });
+        }
+
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+        }
+
+        const accountNo = await Bank.findOne({ accountNo: req.body.accountNo });
+
+        if (accountNo) {
+            return res.status(409).json({ status: 'fail',message: 'Account Number already exists' });
+        }
+
+        const iban = await Bank.findOne({ iban: req.body.iban });
+
+        if (iban) {
+            return res.status(409).json({ status: 'fail',message: 'IBAN already exists' });
+        }
+
+        
+        
+        const image = req.file;
+        
+        const data = await Bank.create({
+            ...req.body, image: image ? image?.path : "", merchantId:adminId
         });
-        if (banks.length === 0) {
-            return res.status(400).json({ message: "Bank Data is Empty" })
-        }
-        return res.status(200).json({ message: "Data Sent Successfully", data: banks });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
+
+
+
+        await Merchant.findByIdAndUpdate(adminId,
+            { accounts: merchantData.length + 1 },
+            { new: true });
+
+        return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
-const getBanks = async (req, res) => {
+
+
+
+
+// 2. Get all s
+const getAllData = async (req, res) => {
     try {
-        const banks = await bankModel.find();
-        if (banks.length === 0) {
-            return res.status(400).json({ message: "Bank Data is Empty" })
+        // Extract the token from the Authorization header
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
         }
-        return res.status(200).json({ message: "Data Sent Successfully", data: banks });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
+
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+        }
+
+        // Find data created by the agent, sorted by `createdAt` in descending order
+        const data = await Bank.find({ merchantId:adminId, accountType: req?.query?.accountType }).sort({ createdAt: -1 });
+
+
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
-const getAdminsBank = async (req, res) => {
+
+
+
+
+// 3. Get  by id
+const getDataById = async (req, res) => {
     try {
-        const banks = await bankModel.find({ userId: null });
-        if (banks.length === 0) {
-            return res.status(400).json({ message: "Bank Data is Empty" })
-        }
-        return res.status(200).json({ message: "Data Sent Successfully", data: banks });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
+        const id = req.params.id;
+        const data = await Bank.findById(id);
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
-const getAdminsActiveBank = async (req, res) => {
+
+
+
+// 4. Update 
+const updateData = async (req, res) => {
     try {
-        const banks = await bankModel.find({ userId: null, status: true });
-        if (banks.length === 0) {
-            return res.status(400).json({ message: "Bank Data is Empty" })
-        }
-        return res.status(200).json({ message: "Data Sent Successfully", data: banks });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
+        let id = req.params.id;
+
+
+        let getImage = await Bank.findById(id);
+        const image = req.file === undefined ? getImage?.image : req.file?.path;
+
+
+        const data = await Bank.findByIdAndUpdate(id,
+            { ...req.body, image: image },
+            { new: true });
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
-const getAllActiveBanks = async (req, res) => {
+
+
+// 5. Delete 
+const deleteData = async (req, res) => {
     try {
-        const { id } = req.params;
-        const banks = await bankModel.find({ status: true, adminId: id });
-        if (banks.length === 0) {
-            return res.status(400).json({ message: "Bank Data is Empty" })
-        }
-        return res.status(200).json({ message: "Data Sent Successfully", data: banks });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
+        const id = req.params.id;
+        await Bank.findByIdAndDelete(id);
+        return res.status(200).json({ status: 'ok', message: 'Data deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
-const deleteBank = async (req, res) => {
+
+
+
+
+// 3. Get  by id
+const activeData = async (req, res) => {
     try {
-        const { id } = req.params;
-        const bank = await bankModel.findByIdAndDelete(id);
-        if (bank) {
-            return res.status(200).json({ message: "Bank Deleted Successfully" });
+
+        const id = req.query.id;
+        const accountType = req.query.accountType;
+
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
         }
-        return res.status(400).json({ message: "Wrong Bank Id" });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
+
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+        }
+
+
+        if (!accountType) {
+            return res.status(400).json({ status: 'fail', message: 'Please provide account type!' });
+        }
+
+
+
+        const data = await Bank.findOneAndUpdate({_id:id, accountType},
+            { block: false },
+            { new: true });
+
+
+            
+
+        await Bank.updateMany(
+            { merchantId: adminId, accountType, _id: { $ne: id } },
+            { $set: { block: true } }
+        );
+        
+
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
-const updateBank = async (req, res) => {
-    try {
-        const { id } = req.params;
-        await bankModel.findByIdAndUpdate(id, req.body);
-        return res.status(200).json({ message: "Bank Updated" });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
-    }
-};
+
+
+
 
 module.exports = {
-    createBank,
-    getAllBanks,
-    getAllActiveBanks,
-    deleteBank,
-    updateBank,
-    getBanks,
-    getAdminsBank,
-    getAdminsActiveBank
+    createData,
+    getAllData,
+    getDataById,
+    updateData,
+    deleteData,
+    activeData
 };
