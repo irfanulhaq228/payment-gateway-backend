@@ -44,13 +44,6 @@ const createData = async (req, res) => {
         }
 
 
-        const userName = await Merchant.findOne({ userName: req.body.userName });
-
-        if (userName) {
-            return res.status(409).json({ message: 'Username already exists' });
-        }
-
-
 
         const image = req.file;
 
