@@ -117,6 +117,35 @@ const getAllData = async (req, res) => {
 
 
 
+// 2. Get all s
+const getUserData = async (req, res) => {
+    try {        
+
+        // Find data created by the agent, sorted by `createdAt` in descending order
+        const data = await Bank.find({
+            block: false,
+            accountType: req?.query?.accountType,
+          })
+            .populate({
+              path: 'merchantId',
+              match: { website: req?.query?.website },
+              select: 'website', // Optional: only retrieve the website field
+            })
+            .sort({ createdAt: -1 })
+            .exec();
+          
+          // Filter out any documents where merchantId is null
+          const filteredData = data.filter((item) => item.merchantId !== null);
+          
+
+        return res.status(200).json({ status: 'ok', data: filteredData });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+
 
 
 // 3. Get  by id
@@ -227,5 +256,6 @@ module.exports = {
     getDataById,
     updateData,
     deleteData,
-    activeData
+    activeData,
+    getUserData
 };

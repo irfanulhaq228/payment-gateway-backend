@@ -1,14 +1,17 @@
 const mongoose = require('mongoose');
 
 const ledgerSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    admin: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
-    type: { type: String },
+    bankId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bank' },
+    merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant' },
+    adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    image: { type: String },
+    website: { type: String },
+    utr: { type: String },
     amount: { type: Number },
-    status: { type: String },
-    createdDate: { type: Date },
-    updatedDate: { type: Date },
-    actionId: { type: String }
+    tax: { type: Number },
+    total: { type: Number },
+    status: { type: String, default:'Unverified' },
+    method: { type: String },
 }, {
     timestamps: true
 });
