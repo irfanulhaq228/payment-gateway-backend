@@ -173,7 +173,6 @@ const verifyData = async (req, res) => {
         
 
         const adminData = await Admin.findOne({apiKey:req.body.apiKey, secretKey: req.body.secretKey});
-
         if(!adminData){
             return res.status(400).json({ status:'fail' ,message: "Invalid API Key or Secret Key" });
         }
@@ -195,7 +194,7 @@ const verifyData = async (req, res) => {
         }
 
         const data = await Merchant.findByIdAndUpdate(adminId,
-            { apiKey: req.body.apiKey },
+            { apiKey: req.body.apiKey, secretKey: req.body.secretKey, verify: true },
             { new: true });
 
         return res.status(200).json({ status: 'ok', data });

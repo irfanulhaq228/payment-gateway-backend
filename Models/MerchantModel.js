@@ -4,6 +4,7 @@ const merchantSchema = new mongoose.Schema({
     image: { type: String, required: false},
     merchantName: { type: String, required: false},
     apiKey: { type: String, required: false},
+    secretKey: { type: String, required: false},
     fullName: { type: String, required: false},
     userName: { type: String, required: false},
     phone: { type: String, required: false },
