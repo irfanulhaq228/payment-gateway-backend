@@ -1,5 +1,5 @@
 
-const {  createData, getDataById, updateData, deleteData,  imageUploadData, getAllAdminData, getAllMerchantData, getCardAdminData, getCardMerchantData, getMonthlyAdminData, getMonthlyMerchantData }=require('../Controllers/LedgerController')
+const {  createData, getDataById, updateData, deleteData,  imageUploadData, getAllAdminData, getAllMerchantData, getCardAdminData, getCardMerchantData, getMonthlyAdminData, getMonthlyMerchantData, compareDataReport }=require('../Controllers/LedgerController')
 const authenticate = require('../Middleware/auth')
 const { upload } = require('../Multer/Multer')
 
@@ -11,6 +11,7 @@ router.get('/cardAdminData',authenticate,getCardAdminData)
 router.get('/cardMerchantData',authenticate,getCardMerchantData)
 router.get('/monthlyAdminData',authenticate,getMonthlyAdminData)
 router.get('/monthlyMerchantData',authenticate,getMonthlyMerchantData)
+router.post('/compare',compareDataReport)
 router.post('/create',upload.single('image'),createData)
 router.post('/getImageData',upload.single('image'),imageUploadData)
 router.get('/get/:id',getDataById)

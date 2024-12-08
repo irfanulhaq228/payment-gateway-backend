@@ -348,6 +348,8 @@ const getDataById = async (req, res) => {
 
 
 
+
+
 // 3. Get  by id
 const getCardAdminData = async (req, res) => {
     try {
@@ -686,6 +688,36 @@ const deleteData = async (req, res) => {
 
 
 
+const compareDataReport = async (req, res) => {
+    try {
+        const {utr, total} = req.body;
+
+        
+
+        const data = await Ledger.findOne({utr});
+
+        if(!data){
+            return res.status(400).json({ status: 'fail', message: 'No such transaction found!' });
+        }
+
+        if(total!==data?.total){
+            return res.status(400).json({ status: 'fail', message: 'Your amount is not match with your transaction!' });
+        }
+
+        const updateData = await Ledger.findByIdAndUpdate(data?._id,
+            { status:'Verified' },
+            { new: true });
+
+
+        return res.status(200).json({ status: 'ok', data: updateData });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+
+
 
 module.exports = {
     createData,
@@ -699,4 +731,5 @@ module.exports = {
     getCardMerchantData,
     getMonthlyAdminData,
     getMonthlyMerchantData,
+    compareDataReport,
 };
