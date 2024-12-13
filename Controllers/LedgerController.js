@@ -1,5 +1,6 @@
 const Ledger = require('../Models/LedgerModel');
 const Merchant = require('../Models/MerchantModel');
+const Bank = require('../Models/BankModel');
 const jwt = require('jsonwebtoken');
 const tesseract = require("tesseract.js");
 const path = require("path");
@@ -82,19 +83,59 @@ const createData = async (req, res) => {
             return res.status(400).json({ status: 'fail', data, message: 'Please provide website!' });
         }
 
+        if (!req.body.bankId) {
+            return res.status(400).json({ status: 'fail', data, message: 'Please select bank account!' });
+        }
+
+        if (!req.body.total) {
+            return res.status(400).json({ status: 'fail', data, message: 'Please give total amount of your ledger!' });
+        }
+
         const websiteData = await Merchant.findOne({ website: req.body.website });
+        const bankData = await Bank.findOne({ _id: req.body.bankId });
 
         console.log(websiteData?.adminId);
 
+        if (bankData?.accountLimit > (bankData?.remainingLimit + req.body.total)) {
+            const image = req.file;
 
-        const image = req.file;
- 
-        const data = await Ledger.create({
-            ...req.body, image: image ? image?.path : "", merchantId: websiteData?._id, adminId: websiteData?.adminId
-        });
+            const data = await Ledger.create({
+                ...req.body, image: image ? image?.path : "", merchantId: websiteData?._id, adminId: websiteData?.adminId
+            });
+
+            await Bank.findByIdAndUpdate(req.body.bankId,
+                { remainingLimit: bankData?.remainingLimit + req.body.total },
+                { new: true });
+
+            return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
+        }
+        else {
+
+            const data = await Bank.findOneAndUpdate({_id:bankData?._id},
+                { block: true },
+                { new: true });    
+                
+
+                const banks = await Bank.find({
+                    accountType: bankData?.accountType, 
+                    $expr: {
+                        $gt: ["$accountLimit", { $add: ["$remainingLimit", req.body.total] }]
+                    }
+                });
+                
+
+                if(banks?.length===0){
+                    return res.status(400).json({ status: 'fail', data, message: 'All bank accounts reach the maximum limit of deposit. Please contact to the support!' });
+                }
+                
+            await Bank.findOneAndUpdate({_id:banks[0]?._id},
+                { block: false },
+                { new: true }); 
 
 
-        return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
+            return res.status(400).json({ status: 'fail', data, message: 'Bank account reach the maximum limit of deposit. Please refresh your browser to get another bank for transaction!' });
+        }
+
     }
     catch (err) {
         res.status(500).json({ error: err.message });
@@ -194,8 +235,8 @@ const getAllAdminData = async (req, res) => {
             .skip((page - 1) * limit)
             .exec();
 
-            console.log(data);
-            
+        console.log(data);
+
 
 
         const count = await Ledger.find(query).populate(["bankId"]).sort({ createdAt: -1 }).countDocuments();;
@@ -411,7 +452,7 @@ const getCardAdminData = async (req, res) => {
             ...dateFilter,
             ...(status && { status }), // Include status if provided
             adminId: adminId
-          };
+        };
 
         const data = await Ledger.find(query);
 
@@ -419,7 +460,7 @@ const getCardAdminData = async (req, res) => {
         const totalSum = data.reduce((sum, record) => sum + (record.total || 0), 0);
 
 
-        return res.status(200).json({ status: 'ok', data:totalSum,  });
+        return res.status(200).json({ status: 'ok', data: totalSum, });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -433,67 +474,67 @@ const getCardAdminData = async (req, res) => {
 const getMonthlyAdminData = async (req, res) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
-    
+
         if (!token) {
-          return res.status(401).json({ status: 'fail', message: 'No token provided' });
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
         }
-    
+
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const adminId = decoded.adminId;
-    
+
         if (!adminId) {
-          return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
         }
-    
+
         // Convert adminId to ObjectId
         const merchantFilter = { adminId: adminId };
-    
-    
+
+
         const records = await Ledger.find(merchantFilter);
-    
+
         // Debug: Log the fetched records
         console.log('Fetched Records:', records);
-    
+
         if (!records.length) {
-          return res.status(404).json({ status: 'fail', message: 'No records found for this admin!' });
+            return res.status(404).json({ status: 'fail', message: 'No records found for this admin!' });
         }
-    
+
         // Group data by month, year, and status
         const groupedData = {};
-    
+
         records.forEach((record) => {
-          const createdAt = new Date(record.createdAt);
-          const year = createdAt.getFullYear();
-          const month = createdAt.getMonth() + 1; // getMonth() is zero-based
-          const status = record.status;
-          const total = record.total || 0;
-    
-          const key = `${year}-${month}`;
-    
-          if (!groupedData[key]) {
-            groupedData[key] = { year, month, statuses: {} };
-          }
-    
-          if (!groupedData[key].statuses[status]) {
-            groupedData[key].statuses[status] = 0;
-          }
-    
-          // Sum up the totals for each status
-          groupedData[key].statuses[status] += total;
+            const createdAt = new Date(record.createdAt);
+            const year = createdAt.getFullYear();
+            const month = createdAt.getMonth() + 1; // getMonth() is zero-based
+            const status = record.status;
+            const total = record.total || 0;
+
+            const key = `${year}-${month}`;
+
+            if (!groupedData[key]) {
+                groupedData[key] = { year, month, statuses: {} };
+            }
+
+            if (!groupedData[key].statuses[status]) {
+                groupedData[key].statuses[status] = 0;
+            }
+
+            // Sum up the totals for each status
+            groupedData[key].statuses[status] += total;
         });
-    
+
         // Convert grouped data to an array for the response
         const formattedReport = Object.values(groupedData);
-    
+
         // Debug: Log the formatted report
         console.log('Formatted Report:', formattedReport);
-    
-    
+
+
         return res.status(200).json({ status: 'ok', data: formattedReport });
-      } catch (err) {
+    } catch (err) {
         console.error(err); // Log the error for debugging
         res.status(500).json({ error: err.message });
-      }
+    }
 };
 
 
@@ -503,72 +544,72 @@ const getMonthlyAdminData = async (req, res) => {
 // 3. Get  by id
 
 const getMonthlyMerchantData = async (req, res) => {
-  try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
 
-    if (!token) {
-      return res.status(401).json({ status: 'fail', message: 'No token provided' });
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+        }
+
+        // Convert adminId to ObjectId
+        const merchantFilter = { merchantId: adminId };
+
+
+        const records = await Ledger.find(merchantFilter);
+
+        // Debug: Log the fetched records
+        console.log('Fetched Records:', records);
+
+        if (!records.length) {
+            return res.status(404).json({ status: 'fail', message: 'No records found for this merchant!' });
+        }
+
+        // Group data by month, year, and status
+        const groupedData = {};
+
+        records.forEach((record) => {
+            const createdAt = new Date(record.createdAt);
+            const year = createdAt.getFullYear();
+            const month = createdAt.getMonth() + 1; // getMonth() is zero-based
+            const status = record.status;
+            const total = record.total || 0;
+
+            const key = `${year}-${month}`;
+
+            if (!groupedData[key]) {
+                groupedData[key] = { year, month, statuses: {} };
+            }
+
+            if (!groupedData[key].statuses[status]) {
+                groupedData[key].statuses[status] = 0;
+            }
+
+            // Sum up the totals for each status
+            groupedData[key].statuses[status] += total;
+        });
+
+        // Convert grouped data to an array for the response
+        const formattedReport = Object.values(groupedData);
+
+        // Debug: Log the formatted report
+        console.log('Formatted Report:', formattedReport);
+
+
+        return res.status(200).json({ status: 'ok', data: formattedReport });
+    } catch (err) {
+        console.error(err); // Log the error for debugging
+        res.status(500).json({ error: err.message });
     }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const adminId = decoded.adminId;
-
-    if (!adminId) {
-      return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
-    }
-
-    // Convert adminId to ObjectId
-    const merchantFilter = { merchantId: adminId };
-
-
-    const records = await Ledger.find(merchantFilter);
-
-    // Debug: Log the fetched records
-    console.log('Fetched Records:', records);
-
-    if (!records.length) {
-      return res.status(404).json({ status: 'fail', message: 'No records found for this merchant!' });
-    }
-
-    // Group data by month, year, and status
-    const groupedData = {};
-
-    records.forEach((record) => {
-      const createdAt = new Date(record.createdAt);
-      const year = createdAt.getFullYear();
-      const month = createdAt.getMonth() + 1; // getMonth() is zero-based
-      const status = record.status;
-      const total = record.total || 0;
-
-      const key = `${year}-${month}`;
-
-      if (!groupedData[key]) {
-        groupedData[key] = { year, month, statuses: {} };
-      }
-
-      if (!groupedData[key].statuses[status]) {
-        groupedData[key].statuses[status] = 0;
-      }
-
-      // Sum up the totals for each status
-      groupedData[key].statuses[status] += total;
-    });
-
-    // Convert grouped data to an array for the response
-    const formattedReport = Object.values(groupedData);
-
-    // Debug: Log the formatted report
-    console.log('Formatted Report:', formattedReport);
-
-
-    return res.status(200).json({ status: 'ok', data: formattedReport });
-  } catch (err) {
-    console.error(err); // Log the error for debugging
-    res.status(500).json({ error: err.message });
-  }
 };
 
-  
+
 
 
 
@@ -634,7 +675,7 @@ const getCardMerchantData = async (req, res) => {
             ...dateFilter,
             ...(status && { status }), // Include status if provided
             merchantId: adminId
-          };
+        };
 
         const data = await Ledger.find(query);
 
@@ -642,7 +683,7 @@ const getCardMerchantData = async (req, res) => {
         const totalSum = data.reduce((sum, record) => sum + (record.total || 0), 0);
 
 
-        return res.status(200).json({ status: 'ok', data:totalSum,  });
+        return res.status(200).json({ status: 'ok', data: totalSum, });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -690,22 +731,22 @@ const deleteData = async (req, res) => {
 
 const compareDataReport = async (req, res) => {
     try {
-        const {utr, total} = req.body;
+        const { utr, total } = req.body;
 
-        
 
-        const data = await Ledger.findOne({utr});
 
-        if(!data){
+        const data = await Ledger.findOne({ utr });
+
+        if (!data) {
             return res.status(400).json({ status: 'fail', message: 'No such transaction found!' });
         }
 
-        if(total!==data?.total){
+        if (total !== data?.total) {
             return res.status(400).json({ status: 'fail', message: 'Your amount is not match with your transaction!' });
         }
 
         const updateData = await Ledger.findByIdAndUpdate(data?._id,
-            { status:'Verified' },
+            { status: 'Verified' },
             { new: true });
 
 
