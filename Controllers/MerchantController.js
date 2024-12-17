@@ -185,11 +185,11 @@ const loginData = async (req, res) => {
 // 3. Get  by id
 const verifyData = async (req, res) => {
     try {
-        
 
-        const adminData = await Admin.findOne({apiKey:req.body.apiKey, secretKey: req.body.secretKey});
-        if(!adminData){
-            return res.status(400).json({ status:'fail' ,message: "Invalid API Key or Secret Key" });
+
+        const adminData = await Admin.findOne({ apiKey: req.body.apiKey, secretKey: req.body.secretKey });
+        if (!adminData) {
+            return res.status(400).json({ status: 'fail', message: "Invalid API Key or Secret Key" });
         }
 
 
@@ -218,6 +218,21 @@ const verifyData = async (req, res) => {
     }
 };
 
+const webInfo = async (req, res) => {
+    try {
+        const { website } = req.body;
+
+        const merchant = await Merchant.findOne({ website }).select('tax');
+        if (!merchant) {
+            return res.status(400).json({ status: 'fail' });
+        }
+
+        return res.status(200).json({ status: 'ok', data: merchant });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 
 
 
@@ -229,5 +244,6 @@ module.exports = {
     updateData,
     deleteData,
     loginData,
-    verifyData
+    verifyData,
+    webInfo
 };

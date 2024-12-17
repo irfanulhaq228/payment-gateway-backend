@@ -96,7 +96,7 @@ const createData = async (req, res) => {
 
         console.log(websiteData?.adminId);
 
-        if (bankData?.accountLimit > (bankData?.remainingLimit + req.body.total)) {
+        if (bankData?.accountLimit > (bankData?.remainingLimit + parseFloat(req.body.total))) {
             const image = req.file;
 
             const data = await Ledger.create({
@@ -104,7 +104,7 @@ const createData = async (req, res) => {
             });
 
             await Bank.findByIdAndUpdate(req.body.bankId,
-                { remainingLimit: bankData?.remainingLimit + req.body.total },
+                { remainingLimit: bankData?.remainingLimit + parseFloat(req.body.total) },
                 { new: true });
 
             return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
@@ -119,7 +119,7 @@ const createData = async (req, res) => {
                 const banks = await Bank.find({
                     accountType: bankData?.accountType, 
                     $expr: {
-                        $gt: ["$accountLimit", { $add: ["$remainingLimit", req.body.total] }]
+                        $gt: ["$accountLimit", { $add: ["$remainingLimit", parseFloat(req.body.total)] }]
                     }
                 });
                 
