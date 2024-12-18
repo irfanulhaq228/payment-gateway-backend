@@ -101,7 +101,7 @@ const createData = async (req, res) => {
                 const banks = await Bank.find({
                     accountType: bankData?.accountType,
                     $expr: {
-                        $gt: ["$accountLimit", { $add: ["$remainingLimit", parseFloat(req.body.total)] }]
+                        $gt: ["$remainingLimit", tenPercentAmount]
                     }
                 });
 
