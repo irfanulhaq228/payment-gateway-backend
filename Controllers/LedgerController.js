@@ -95,6 +95,30 @@ const createData = async (req, res) => {
         const bankData = await Bank.findOne({ _id: req.body.bankId });
         const tenPercentAmount = parseFloat(bankData?.accountLimit) * (10 / 100);
         if (tenPercentAmount < parseFloat(bankData?.remainingLimit)) {
+
+            if (bankData?.remainingLimit < req.body.total) {
+
+                const banks = await Bank.find({
+                    accountType: bankData?.accountType,
+                    $expr: {
+                        $gt: ["$accountLimit", { $add: ["$remainingLimit", parseFloat(req.body.total)] }]
+                    }
+                });
+
+                if (banks?.length === 0) {
+                    return res.status(400).json({ status: 'fail', message: 'All bank accounts reach the maximum limit of deposit. Please contact to the support!' });
+                }
+
+                const updateBank = await Bank.findOneAndUpdate({ _id: banks[0]?._id },
+                    { block: false },
+                    { new: true });
+
+                if (updateBank) {
+                    await Bank.findOneAndUpdate({ _id: bankData?._id }, { block: true }, { new: true });
+                }
+                return res.status(400).json({ status: 'fail', message: 'This card has reached its maximum limit, try again with new one' });
+            }
+
             const image = req.file;
 
             const data = await Ledger.create({
