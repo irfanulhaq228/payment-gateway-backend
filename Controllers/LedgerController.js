@@ -93,10 +93,8 @@ const createData = async (req, res) => {
 
         const websiteData = await Merchant.findOne({ website: req.body.website });
         const bankData = await Bank.findOne({ _id: req.body.bankId });
-
-        console.log(websiteData?.adminId);
-
-        if (bankData?.accountLimit > (bankData?.remainingLimit + parseFloat(req.body.total))) {
+        const tenPercentAmount = parseFloat(bankData?.accountLimit) * (10 / 100);
+        if (tenPercentAmount < parseFloat(bankData?.remainingLimit)) {
             const image = req.file;
 
             const data = await Ledger.create({
@@ -104,33 +102,32 @@ const createData = async (req, res) => {
             });
 
             await Bank.findByIdAndUpdate(req.body.bankId,
-                { remainingLimit: bankData?.remainingLimit + parseFloat(req.body.total) },
+                { remainingLimit: bankData?.remainingLimit - parseFloat(req.body.total) },
                 { new: true });
 
             return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
         }
         else {
 
-            const data = await Bank.findOneAndUpdate({_id:bankData?._id},
+            const data = await Bank.findOneAndUpdate({ _id: bankData?._id },
                 { block: true },
-                { new: true });    
-                
+                { new: true });
 
-                const banks = await Bank.find({
-                    accountType: bankData?.accountType, 
-                    $expr: {
-                        $gt: ["$accountLimit", { $add: ["$remainingLimit", parseFloat(req.body.total)] }]
-                    }
-                });
-                
-
-                if(banks?.length===0){
-                    return res.status(400).json({ status: 'fail', data, message: 'All bank accounts reach the maximum limit of deposit. Please contact to the support!' });
+            const banks = await Bank.find({
+                accountType: bankData?.accountType,
+                $expr: {
+                    $gt: ["$accountLimit", { $add: ["$remainingLimit", parseFloat(req.body.total)] }]
                 }
-                
-            await Bank.findOneAndUpdate({_id:banks[0]?._id},
+            });
+
+
+            if (banks?.length === 0) {
+                return res.status(400).json({ status: 'fail', data, message: 'All bank accounts reach the maximum limit of deposit. Please contact to the support!' });
+            }
+
+            await Bank.findOneAndUpdate({ _id: banks[0]?._id },
                 { block: false },
-                { new: true }); 
+                { new: true });
 
 
             return res.status(400).json({ status: 'fail', data, message: 'Bank account reach the maximum limit of deposit. Please refresh your browser to get another bank for transaction!' });
