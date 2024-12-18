@@ -109,9 +109,14 @@ const createData = async (req, res) => {
                     return res.status(400).json({ status: 'fail', message: 'All bank accounts reach the maximum limit of deposit. Please contact to the support!' });
                 }
 
-                const updateBank = await Bank.findOneAndUpdate({ _id: banks[0]?._id },
+                const updateBank = await Bank.findOneAndUpdate(
+                    { _id: banks[0]._id },
                     { block: false },
-                    { new: true });
+                    { new: true }
+                );
+
+                console.log("remaining banks ", banks);
+                console.log("updated bank ", updateBank);
 
                 if (updateBank) {
                     await Bank.findOneAndUpdate({ _id: bankData?._id }, { block: true }, { new: true });
