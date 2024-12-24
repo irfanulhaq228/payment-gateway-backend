@@ -9,6 +9,10 @@ const createTransactionSlip = async (req, res) => {
 
         const filteredData = data.filter(item => !existingUtrs.has(item.utr));
 
+        if (filteredData.length === 0) {
+            return res.status(400).json({ message: "No New Entries Found" });
+        }
+
         req.body.data = filteredData;
 
         const slip = new transactionSlipModel(req.body);
@@ -36,7 +40,7 @@ const getAllTransactionSlips = async (req, res) => {
 
 const getMerchantTransactionSlips = async (req, res) => {
     try {
-        const { id } = req.body;
+        const { id } = req.query;
         const slips = await transactionSlipModel.find({ merchant: id });
         if (slips.length === 0) {
             return res.status(400).json({ message: "Data is Empty" })
