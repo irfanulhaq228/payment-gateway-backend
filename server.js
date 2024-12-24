@@ -11,6 +11,7 @@ const MerchantRouter = require("./Routes/MerchantRoutes.js");
 const BankRouter = require("./Routes/BankRoutes.js");
 const LedgerRouter = require("./Routes/LedgerRoutes.js");
 const TicketRouter = require("./Routes/TicketRoutes.js");
+const TransactionSlipRoutes = require("./Routes/TransactionSlipRoutes.js");
 
 
 
@@ -41,7 +42,7 @@ app.use("/merchant", MerchantRouter);
 app.use("/bank", BankRouter);
 app.use("/ledger", LedgerRouter);
 app.use("/ticket", TicketRouter);
-
+app.use("/slip", TransactionSlipRoutes);
 
 
 app.listen(process.env.PORT, () => {
