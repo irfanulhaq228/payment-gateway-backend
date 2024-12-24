@@ -218,6 +218,9 @@ const verifyData = async (req, res) => {
     }
 };
 
+
+
+
 const webInfo = async (req, res) => {
     try {
         const { website } = req.body;

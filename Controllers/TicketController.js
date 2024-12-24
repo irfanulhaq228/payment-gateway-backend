@@ -83,8 +83,6 @@ const getAllAdminData = async (req, res) => {
         const query = {};
 
         query.adminId = adminId
-
-
         if (search) {
             query.status = { $regex: ".*" + search + ".*", $options: "i" };
         }
@@ -117,7 +115,6 @@ const getAllAdminData = async (req, res) => {
         });
 
         // Find data created by the agent, sorted by `createdAt` in descending order
-
 
     } catch (err) {
         res.status(500).json({ error: err.message });

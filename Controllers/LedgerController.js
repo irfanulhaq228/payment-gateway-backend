@@ -757,7 +757,7 @@ const deleteData = async (req, res) => {
 
 const compareDataReport = async (req, res) => {
     try {
-        const { utr, total } = req.body;
+        const { utr, total, date } = req.body;
 
 
 

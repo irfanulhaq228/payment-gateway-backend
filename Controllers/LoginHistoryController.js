@@ -66,8 +66,6 @@ const getDataById = async (req, res) => {
 const updateData = async (req, res) => {
     try {
         let id = req.params.id;
-
-
         const data = await LoginHistory.findByIdAndUpdate(id,
             { ...req.body, },
             { new: true });

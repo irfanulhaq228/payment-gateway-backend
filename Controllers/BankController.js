@@ -167,8 +167,6 @@ const updateData = async (req, res) => {
 
         let getImage = await Bank.findById(id);
         const image = req.file === undefined ? getImage?.image : req.file?.path;
-
-
         const data = await Bank.findByIdAndUpdate(id,
             { ...req.body, image: image },
             { new: true });
