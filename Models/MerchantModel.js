@@ -11,6 +11,8 @@ const merchantSchema = new mongoose.Schema({
     email: { type: String, required: false },
     password: { type: String, required: false },
     website: { type: String, required: false },
+    merchantWebsite: { type: String, required: false },
+    webhookUrl: { type: String, required: false },
     tax: { type: Number, required: false, default: 0 },
     bio: { type: String, required: false },
     accounts: { type: Number, required: false, default:0 },

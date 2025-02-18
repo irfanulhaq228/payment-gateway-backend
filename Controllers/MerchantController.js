@@ -1,10 +1,12 @@
 const Merchant = require('../Models/MerchantModel');
 const Admin = require('../Models/AdminModel');
+const Staff = require('../Models/StaffModel');
 const jwt = require('jsonwebtoken');
 var getIP = require('ipware')().get_ip;
 const { lookup } = require('geoip-lite');
 const loginHistoryModel = require("../Models/LoginHistoryModel");
 const moment = require("moment");
+const WebhookSubscriber = require('../Models/WebhookSubscriberModel');
 
 // 1. Create 
 const createData = async (req, res) => {
@@ -27,8 +29,9 @@ const createData = async (req, res) => {
         }
 
         const email = await Merchant.findOne({ email: req.body.email });
+        const emailStaff = await Staff.findOne({ email: req.body.email });
 
-        if (email) {
+        if (email && emailStaff) {
             return res.status(409).json({ message: 'Email already exists' });
         }
 
@@ -53,6 +56,14 @@ const createData = async (req, res) => {
         const data = await Merchant.create({
             ...req.body, image: image ? image?.path : "", adminId
         });
+
+
+        await WebhookSubscriber.create({
+            url: req.body.webhookUrl
+        });
+
+
+
 
         return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
     }
@@ -106,6 +117,21 @@ const getDataById = async (req, res) => {
 };
 
 
+// 3. Get  by id
+const getDataByWebsite = async (req, res) => {
+    try {
+        const website = req.query.website;
+
+        console.log(website);
+        
+        const data = await Merchant.findOne({website:website}).select('-password');
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
 
 
 // 4. Update 
@@ -147,31 +173,48 @@ const loginData = async (req, res) => {
     try {
         const { email, password } = req.body;
         const data = await Merchant.findOne({ email });
-        if (!data) {
+        const dataStaff = await Staff.findOne({ email }).populate(['merchantId']);
+        if (data) {
+            if (data?.block) {
+                return res.status(400).json({ message: "Merchant blocked from admin." });
+            }
+            if (data?.password !== password) {
+                return res.status(400).json({ message: "Incorrect Email or Password" })
+            }
+
+            var ipInfo = getIP(req);
+            const look = lookup(ipInfo?.clientIp);
+
+            const city = `${look?.city}, ${look?.region} ${look?.country}`
+
+            await loginHistoryModel.create({
+                ip: ipInfo?.clientIp,
+                city,
+                adminId: data?._id,
+                loginDate: moment().format("DD MMM YYYY, hh:mm A")
+            });
+
+            const adminId = data?._id;
+            const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+            return res.status(200).json({ message: "Merchant Logged In", token: token, data: data, type: 'merchant' });
+
+        }
+        else if(dataStaff) {
+            if (dataStaff?.block) {
+                return res.status(400).json({ message: "Staff blocked from merchant." });
+            }
+            if (dataStaff?.password !== password) {
+                return res.status(400).json({ message: "Incorrect Email or Password" })
+            }
+
+            const adminId = dataStaff?.merchantId?._id;
+            const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+            return res.status(200).json({ message: "Staff Logged In", token: token, data: dataStaff, type: 'staff' });
+        }else{
             return res.status(400).json({ message: "Incorrect Email or Password" });
         }
-        if (data?.block) {
-            return res.status(400).json({ message: "Merchant blocked from admin." });
-        }
-        if (data?.password !== password) {
-            return res.status(400).json({ message: "Incorrect Email or Password" })
-        }
 
-        var ipInfo = getIP(req);
-        const look = lookup(ipInfo?.clientIp);
 
-        const city = `${look?.city}, ${look?.region} ${look?.country}`
-
-        await loginHistoryModel.create({
-            ip: ipInfo?.clientIp,
-            city,
-            adminId: data?._id,
-            loginDate: moment().format("DD MMM YYYY, hh:mm A")
-        });
-
-        const adminId = data?._id;
-        const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
-        return res.status(200).json({ message: "Merchant Logged In", token: token, data: data });
     } catch (error) {
         console.log(error);
         return res.status(500).json({ message: "Server Error!" })
@@ -244,6 +287,7 @@ module.exports = {
     createData,
     getAllData,
     getDataById,
+    getDataByWebsite,
     updateData,
     deleteData,
     loginData,

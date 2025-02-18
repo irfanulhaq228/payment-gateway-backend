@@ -1,5 +1,5 @@
 const Bank = require('../Models/BankModel');
-const Merchant = require('../Models/MerchantModel');
+const Admin = require('../Models/AdminModel');
 const jwt = require('jsonwebtoken');
 
 
@@ -18,32 +18,9 @@ const createData = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const adminId = decoded.adminId;
 
-        const merchantData = await Bank.find({ merchantId: adminId }).sort({ createdAt: -1 });
-
-        const totalAmount = merchantData?.reduce((sum, item) => sum + Number(item.accountLimit), 0);
-
-        const totalAccountLimit = Number(totalAmount) + Number(req.body.accountLimit)
-
-        const merchantLimit = await Merchant.findOne({ _id: adminId })
-
-
-
-        const accountLimit = merchantLimit?.accountLimit
-
-
-
-
-        if (!merchantLimit?.verify) {
-            return res.status(400).json({ status: 'fail', message: 'Please verify your account!' });
-        }
-
-        if (totalAccountLimit > accountLimit) {
-            return res.status(403).json({ status: 'fail', message: 'Merchant has reached maximum limit of amount' });
-        }
-
 
         if (!adminId) {
-            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
         }
 
         const accountNo = await Bank.findOne({ accountNo: req.body.accountNo });
@@ -63,14 +40,10 @@ const createData = async (req, res) => {
         const image = req.file;
 
         const data = await Bank.create({
-            ...req.body, image: image ? image?.path : "", merchantId: adminId, remainingLimit: req.body.accountLimit
+            ...req.body, image: image ? image?.path : "", adminId: adminId, remainingLimit: req.body.accountLimit
         });
 
 
-
-        await Merchant.findByIdAndUpdate(adminId,
-            { accounts: merchantData.length + 1 },
-            { new: true });
 
         return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
     }
@@ -99,11 +72,28 @@ const getAllData = async (req, res) => {
 
 
         if (!adminId) {
-            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
         }
 
+        var query={}
+
+        query.adminId=adminId
+
+        if(req?.query?.accountType){
+            query.accountType=req?.query?.accountType
+        }
+
+        if(req?.query?.disable){
+            query.disable=req?.query?.disable
+        }
+
+
+
         // Find data created by the agent, sorted by `createdAt` in descending order
-        const data = await Bank.find({ merchantId: adminId, accountType: req?.query?.accountType }).sort({ createdAt: -1 });
+        const data = await Bank.find(query).sort({ createdAt: -1 });
+
+        console.log(req.query, data);
+        
 
 
         return res.status(200).json({ status: 'ok', data });
@@ -122,20 +112,14 @@ const getUserData = async (req, res) => {
         const data = await Bank.find({
             block: false,
             accountType: req?.query?.accountType,
+            disable:false
         })
-            .populate({
-                path: 'merchantId',
-                match: { website: req?.query?.website },
-                select: 'website', // Optional: only retrieve the website field
-            })
             .sort({ createdAt: -1 })
             .exec();
 
-        // Filter out any documents where merchantId is null
-        const filteredData = data.filter((item) => item.merchantId !== null);
 
 
-        return res.status(200).json({ status: 'ok', data: filteredData });
+        return res.status(200).json({ status: 'ok', data: data });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -196,7 +180,6 @@ const deleteData = async (req, res) => {
 // 3. Get  by id
 const activeData = async (req, res) => {
     try {
-
         const id = req.query.id;
         const accountType = req.query.accountType;
 
@@ -206,36 +189,44 @@ const activeData = async (req, res) => {
             return res.status(401).json({ status: 'fail', message: 'No token provided' });
         }
 
-
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const adminId = decoded.adminId;
 
-
         if (!adminId) {
-            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
         }
-
 
         if (!accountType) {
             return res.status(400).json({ status: 'fail', message: 'Please provide account type!' });
         }
 
+        const currentData = await Bank.findOne({ _id: id, accountType, disable:false });
 
+        if (!currentData) {
+            return res.status(404).json({ status: 'fail', message: 'Bank account not found!' });
+        }
 
-        const data = await Bank.findOneAndUpdate({ _id: id, accountType },
+        if (!currentData.block) {
+            await Bank.findOneAndUpdate(
+                { _id: id, accountType, disable:false },
+                { block: true },
+                { new: true }
+            );
+            return res.status(200).json({ status: 'ok', message: 'No changes made', data: currentData });
+        }
+
+        const updatedData = await Bank.findOneAndUpdate(
+            { _id: id, accountType, disable:false },
             { block: false },
-            { new: true });
-
-
-
+            { new: true }
+        );
 
         await Bank.updateMany(
-            { merchantId: adminId, accountType, _id: { $ne: id } },
+            { adminId: adminId, accountType, _id: { $ne: id }, disable:false },
             { $set: { block: true } }
         );
 
-
-        return res.status(200).json({ status: 'ok', data });
+        return res.status(200).json({ status: 'ok', data: updatedData });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

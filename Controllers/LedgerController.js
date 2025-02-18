@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const tesseract = require("tesseract.js");
 const path = require("path");
 const fs = require("fs");
+const { notifySubscribers } = require('../Middleware/webhookService');
 
 
 // Function to extract amount and transaction ID from text
@@ -91,6 +92,13 @@ const createData = async (req, res) => {
             return res.status(400).json({ status: 'fail', data, message: 'Please give total amount of your ledger!' });
         }
 
+        const ledgerData = await Ledger.findOne({ utr: req.body.utr, status: { $ne: 'Decline' } });
+
+        if (ledgerData) {
+            return res.status(401).json({ status: 'fail', message: 'Please upload unique utr transaction!' });
+        }
+
+
         const websiteData = await Merchant.findOne({ website: req.body.website });
         const bankData = await Bank.findOne({ _id: req.body.bankId });
         const tenPercentAmount = parseFloat(bankData?.accountLimit) * (10 / 100);
@@ -114,9 +122,6 @@ const createData = async (req, res) => {
                     { block: false },
                     { new: true }
                 );
-
-                console.log("remaining banks ", banks);
-                console.log("updated bank ", updateBank);
 
                 if (updateBank) {
                     await Bank.findOneAndUpdate({ _id: bankData?._id }, { block: true }, { new: true });
@@ -218,6 +223,9 @@ const getAllAdminData = async (req, res) => {
 
         if (req.query.status) {
             query.status = req.query.status;
+        }
+        if (req.query.type) {
+            query.type = req.query.type;
         }
 
         if (req.query.bankId) {
@@ -337,6 +345,11 @@ const getAllMerchantData = async (req, res) => {
             query.status = req.query.status;
         }
 
+
+        if (req.query.type) {
+            query.type = req.query.type;
+        }
+
         if (req.query.bankId) {
             query.bankId = req.query.bankId;
         }
@@ -395,6 +408,104 @@ const getAllMerchantData = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+
+
+
+
+// 2. Get all s
+const getAllUserData = async (req, res) => {
+    try {
+        const origin = req.get('Origin');
+
+
+
+        const merchantdata = await Merchant.findOne({ merchantWebsite: origin, block: false, verify: true });
+
+
+        console.log(origin);
+
+        if (!origin || origin === "") {
+            return res.status(400).json({ status: "fail", message: "Unauthorized" });
+        }
+
+
+
+        let query = {}
+
+        let search = "";
+        if (req.query.search) {
+            search = req.query.search;
+        }
+
+        let page = "1";
+        if (req.query.page) {
+            page = req.query.page;
+        }
+
+        const limit = req.query.limit ? req.query.limit : "10";
+
+
+        if (search) {
+            query.$or = [
+                { utr: { $regex: ".*" + search + ".*", $options: "i" } },
+                { _id: { $regex: ".*" + search + ".*", $options: "i" } },
+            ];
+        }
+
+        if (req.query.status) {
+            query.status = req.query.status;
+        }
+
+        if (req.query.type) {
+            query.type = req.query.type;
+        }
+
+        if(req.query.username){
+            query.username = req.query.username?.toLowerCase();
+        }
+
+        query.merchantId = merchantdata?._id;
+
+        if (req.query.startDate || req.query.endDate) {
+            query.createdAt = {};
+            if (req.query.startDate) {
+                query.createdAt.$gte = new Date(req.query.startDate).setHours(0, 0, 0, 0);
+            }
+            if (req.query.endDate) {
+                query.createdAt.$lte = new Date(req.query.endDate).setHours(23, 59, 59, 999);
+            }
+        }
+
+        const data = await Ledger.find(query)
+            .populate([
+                {
+                    path: "bankId",
+                    select: 'bankName'
+                },
+            ]).select('image utr amount tax total status username createdAt updatedAt trnNo')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit)
+            .exec();
+
+        const count = await Ledger.countDocuments(query);
+
+        return res.status(200).json({
+            status: "ok",
+            data,
+            search,
+            page,
+            count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+            limit,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 
 
 
@@ -721,16 +832,36 @@ const getCardMerchantData = async (req, res) => {
 // 4. Update 
 const updateData = async (req, res) => {
     try {
+        console.log("======= update state api cal ==========>");
         let id = req.params.id;
 
 
         let getImage = await Ledger.findById(id);
         const image = req.file === undefined ? getImage?.image : req.file?.path;
 
+        let activity = "";
+        if(req.body.website !== getImage?.website && req.body.username !== getImage?.username){
+            activity = "Both Website and UserId are changed"
+        }else if(req.body.website !== getImage?.website && req.body.username === getImage?.username){
+            activity = "Website is changed"
+        }else if(req.body.website === getImage?.website && req.body.username !== getImage?.username){
+            activity = "UserId is changed"
+        }
 
         const data = await Ledger.findByIdAndUpdate(id,
-            { ...req.body, image: image },
+            { ...req.body, image: image, activity },
             { new: true });
+
+
+            if(req.body.status){
+                await notifySubscribers('ledger.status.updated', {
+                        transactionId:data?.trnNo,
+                        amount:data?.total,
+                        username:data?.username,
+                        status:req.body.status
+                }, data?.merchantId?.toHexString()); 
+            } 
+
         return res.status(200).json({ status: 'ok', data });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -757,18 +888,10 @@ const deleteData = async (req, res) => {
 
 const compareDataReport = async (req, res) => {
     try {
-        const { utr, total, date } = req.body;
-
-
-
-        const data = await Ledger.findOne({ utr });
-
+        const { utr, total } = req.body;
+        const data = await Ledger.findOne({ utr, status: "Pending", total });
         if (!data) {
             return res.status(400).json({ status: 'fail', message: 'No such transaction found!' });
-        }
-
-        if (total !== data?.total) {
-            return res.status(400).json({ status: 'fail', message: 'Your amount is not match with your transaction!' });
         }
 
         const updateData = await Ledger.findByIdAndUpdate(data?._id,
@@ -791,6 +914,7 @@ module.exports = {
     imageUploadData,
     getAllAdminData,
     getAllMerchantData,
+    getAllUserData,
     getDataById,
     updateData,
     deleteData,

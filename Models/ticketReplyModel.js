@@ -1,18 +1,16 @@
 const mongoose = require('mongoose');
 
-const ticketSchema = new mongoose.Schema({
+const ticketReplySchema = new mongoose.Schema({
     merchantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Merchant' },
     adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     ledgerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ledger' },
-    title: { type: String },
+    ticketId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket' },
     message: { type: String },
     type: { type: String },
-    ticketClose: { type: Boolean, default: false },
-    status: { type: String, },
 }, {
     timestamps: true
 });
 
-const ticketModel = mongoose.model('Ticket', ticketSchema);
+const ticketReplyModel = mongoose.model('TicketReply', ticketReplySchema);
 
-module.exports = ticketModel;
+module.exports = ticketReplyModel;

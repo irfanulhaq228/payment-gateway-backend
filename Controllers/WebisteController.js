@@ -1,4 +1,5 @@
-const Ticket = require('../Models/ticketModel');
+const Website = require('../Models/WebsiteModel');
+const Merchant = require('../Models/MerchantModel');
 const jwt = require('jsonwebtoken');
 
 
@@ -20,19 +21,12 @@ const createData = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const adminId = decoded.adminId;
 
-
-        if (!adminId && req.body.type==='Admin') {
-            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
-        }
-        if (!adminId && req.body.type==='Merchant'){
+        if (!adminId){
             return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
         }
 
-        
-        // const image = req.file;
-
-        const data = await Ticket.create({
-            ...req.body, merchantId: req.body.type==='Merchant'?adminId:req.body.merchantId, adminId: req.body.type==='Admin'?adminId: req.body.adminId,
+        const data = await Website.create({
+            ...req.body,  merchantId: adminId,
         });
 
 
@@ -48,70 +42,27 @@ const createData = async (req, res) => {
 
 
 // 2. Get all s
-const getAllAdminData = async (req, res) => {
+const getAllWebData = async (req, res) => {
     try {
         // Extract the token from the Authorization header
-        const token = req.header('Authorization')?.replace('Bearer ', '');
+        
+        const webData = await Merchant.findOne({ website : req.query.website });
 
-        if (!token) {
-            return res.status(401).json({ status: 'fail', message: 'No token provided' });
+
+        if (!webData) {
+            return res.status(400).json({ status: 'fail', message: 'Website not found!' });
         }
-
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const adminId = decoded.adminId;
-
-
-        if (!adminId) {
-            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
-        }
-
-
-        var search = "";
-        if (req.query.search) {
-            search = req.query.search;
-        }
-
-        var page = "1";
-        if (req.query.page) {
-            page = req.query.page;
-        }
-
-        const limit = req.query.limit ? req.query.limit : "10";
-
-
-        const query = {};
-
-        query.adminId = adminId
-        if (search) {
-            query.status = { $regex: ".*" + search + ".*", $options: "i" };
-        }
-
-        if (req.query.status) {
-            query.status = req.query.status;
-        }
-
 
 
         // Find data created by the agent, sorted by `createdAt` in descending order
-        const data = await Ticket.find(query).sort({ createdAt: -1 })
-            .limit(limit * 1)
-            .skip((page - 1) * limit)
-            .exec();
+        const data = await Website.find({merchantId:webData?._id}).sort({ createdAt: -1 })
 
 
-        const count = await Ticket.find(query).sort({ createdAt: -1 }).countDocuments();;
 
 
         return res.status(200).json({
             status: "ok",
             data,
-            search,
-            page,
-            count,
-            totalPages: Math.ceil(count / limit),
-            currentPage: page,
-            limit
         });
 
         // Find data created by the agent, sorted by `createdAt` in descending order
@@ -162,25 +113,17 @@ const getAllMerchantData = async (req, res) => {
         query.merchantId = adminId
 
 
-        if (search) {
-            query.status = { $regex: ".*" + search + ".*", $options: "i" };
-        }
-
-        if (req.query.status) {
-            query.status = req.query.status;
-        }
-
 
 
 
         // Find data created by the agent, sorted by `createdAt` in descending order
-        const data = await Ticket.find(query).sort({ createdAt: -1 })
+        const data = await Website.find(query).sort({ createdAt: -1 })
             .limit(limit * 1)
             .skip((page - 1) * limit)
             .exec();
 
 
-        const count = await Ticket.find(query).sort({ createdAt: -1 }).countDocuments();;
+        const count = await Website.find(query).sort({ createdAt: -1 }).countDocuments();;
 
 
         return res.status(200).json({
@@ -206,7 +149,7 @@ const getAllMerchantData = async (req, res) => {
 const getDataById = async (req, res) => {
     try {
         const id = req.params.id;
-        const data = await Ticket.findById(id);
+        const data = await Website.findById(id);
         return res.status(200).json({ status: 'ok', data });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -222,11 +165,7 @@ const updateData = async (req, res) => {
         let id = req.params.id;
 
 
-        // let getImage = await Ticket.findById(id);
-        // const image = req.file === undefined ? getImage?.image : req.file?.path;
-
-
-        const data = await Ticket.findByIdAndUpdate(id,
+        const data = await Website.findByIdAndUpdate(id,
             { ...req.body },
             { new: true });
         return res.status(200).json({ status: 'ok', data });
@@ -241,7 +180,7 @@ const updateData = async (req, res) => {
 const deleteData = async (req, res) => {
     try {
         const id = req.params.id;
-        await Ticket.findByIdAndDelete(id);
+        await Website.findByIdAndDelete(id);
         return res.status(200).json({ status: 'ok', message: 'Data deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -256,7 +195,7 @@ const deleteData = async (req, res) => {
 
 module.exports = {
     createData,
-    getAllAdminData,
+    getAllWebData,
     getAllMerchantData,
     getDataById,
     updateData,

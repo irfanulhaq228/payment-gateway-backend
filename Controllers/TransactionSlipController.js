@@ -41,7 +41,7 @@ const getAllTransactionSlips = async (req, res) => {
 const getMerchantTransactionSlips = async (req, res) => {
     try {
         const { id } = req.query;
-        const slips = await transactionSlipModel.find({ merchant: id });
+        const slips = await transactionSlipModel.find({ merchant: id }).sort({ createdAt: -1 });
         if (slips.length === 0) {
             return res.status(400).json({ message: "Data is Empty" })
         }
@@ -52,8 +52,20 @@ const getMerchantTransactionSlips = async (req, res) => {
     }
 };
 
+const deleteMerchantTransactionSlips = async (req, res) => {
+    try {
+        const id = req.params.id;
+        await transactionSlipModel.findByIdAndDelete(id);
+        return res.status(200).json({ status: 'ok', message: 'Data deleted successfully' });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ message: "Server Error!" })
+    }
+};
+
 module.exports = {
     createTransactionSlip,
     getAllTransactionSlips,
-    getMerchantTransactionSlips
+    getMerchantTransactionSlips,
+    deleteMerchantTransactionSlips
 };
