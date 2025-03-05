@@ -1,5 +1,5 @@
 const Bank = require('../Models/BankModel');
-const Admin = require('../Models/AdminModel');
+const BankLog = require('../Models/BankLogModel');
 const jwt = require('jsonwebtoken');
 
 
@@ -43,6 +43,7 @@ const createData = async (req, res) => {
             ...req.body, image: image ? image?.path : "", adminId: adminId, remainingLimit: req.body.accountLimit
         });
 
+        await BankLog.create({ bankId: data._id, status: 'Created', reason: 'New Bank Added' })
 
 
         return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
@@ -75,16 +76,16 @@ const getAllData = async (req, res) => {
             return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
         }
 
-        var query={}
+        var query = {}
 
-        query.adminId=adminId
+        query.adminId = adminId
 
-        if(req?.query?.accountType){
-            query.accountType=req?.query?.accountType
+        if (req?.query?.accountType) {
+            query.accountType = req?.query?.accountType
         }
 
-        if(req?.query?.disable){
-            query.disable=req?.query?.disable
+        if (req?.query?.disable) {
+            query.disable = req?.query?.disable
         }
 
 
@@ -92,8 +93,53 @@ const getAllData = async (req, res) => {
         // Find data created by the agent, sorted by `createdAt` in descending order
         const data = await Bank.find(query).sort({ createdAt: -1 });
 
-        console.log(req.query, data);
-        
+
+
+
+        return res.status(200).json({ status: 'ok', data });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+
+
+// 2. Get all s
+const getAllBankData = async (req, res) => {
+    try {
+        // Extract the token from the Authorization header
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({ status: 'fail', message: 'No token provided' });
+        }
+
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const adminId = decoded.adminId;
+
+
+        if (!adminId) {
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
+        }
+
+        var query = {}
+
+        if (req?.query?.accountType) {
+            query.accountType = req?.query?.accountType
+        }
+
+        if (req?.query?.disable) {
+            query.disable = req?.query?.disable
+        }
+
+
+
+        // Find data created by the agent, sorted by `createdAt` in descending order
+        const data = await Bank.find(query).sort({ createdAt: -1 });
+
+
 
 
         return res.status(200).json({ status: 'ok', data });
@@ -112,7 +158,7 @@ const getUserData = async (req, res) => {
         const data = await Bank.find({
             block: false,
             accountType: req?.query?.accountType,
-            disable:false
+            disable: false
         })
             .sort({ createdAt: -1 })
             .exec();
@@ -149,6 +195,13 @@ const updateData = async (req, res) => {
         let id = req.params.id;
 
 
+        if (req.body.disable) {
+            await BankLog.create({ bankId: id, status: 'Disable', reason: 'Bank is Disabled.' })
+        }
+        else if (req.body.disable === false) {
+            await BankLog.create({ bankId: id, status: 'Enable', reason: 'Bank is Enabled.' })
+        }
+
         let getImage = await Bank.findById(id);
         const image = req.file === undefined ? getImage?.image : req.file?.path;
         const data = await Bank.findByIdAndUpdate(id,
@@ -166,6 +219,8 @@ const updateData = async (req, res) => {
 const deleteData = async (req, res) => {
     try {
         const id = req.params.id;
+        await BankLog.create({ bankId: id, status: 'Deleted', reason: 'Bank is Deleted.' })
+
         await Bank.findByIdAndDelete(id);
         return res.status(200).json({ status: 'ok', message: 'Data deleted successfully' });
     } catch (err) {
@@ -200,7 +255,7 @@ const activeData = async (req, res) => {
             return res.status(400).json({ status: 'fail', message: 'Please provide account type!' });
         }
 
-        const currentData = await Bank.findOne({ _id: id, accountType, disable:false });
+        const currentData = await Bank.findOne({ _id: id, accountType, disable: false });
 
         if (!currentData) {
             return res.status(404).json({ status: 'fail', message: 'Bank account not found!' });
@@ -208,25 +263,32 @@ const activeData = async (req, res) => {
 
         if (!currentData.block) {
             await Bank.findOneAndUpdate(
-                { _id: id, accountType, disable:false },
+                { _id: id, accountType, disable: false },
                 { block: true },
                 { new: true }
             );
+
+            await BankLog.create({ bankId: id, status: 'InActive', reason: 'Bank is Inactive.' })
+
+
             return res.status(200).json({ status: 'ok', message: 'No changes made', data: currentData });
         }
+        else {
 
-        const updatedData = await Bank.findOneAndUpdate(
-            { _id: id, accountType, disable:false },
-            { block: false },
-            { new: true }
-        );
 
-        await Bank.updateMany(
-            { adminId: adminId, accountType, _id: { $ne: id }, disable:false },
-            { $set: { block: true } }
-        );
+            const updatedData = await Bank.findOneAndUpdate(
+                { _id: id, accountType, disable: false },
+                { block: false },
+                { new: true }
+            );
 
-        return res.status(200).json({ status: 'ok', data: updatedData });
+            await BankLog.create({ bankId: id, status: 'Active', reason: 'Bank is Active.' })
+
+
+
+            return res.status(200).json({ status: 'ok', data: updatedData });
+        }
+
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -239,6 +301,7 @@ const activeData = async (req, res) => {
 module.exports = {
     createData,
     getAllData,
+    getAllBankData,
     getDataById,
     updateData,
     deleteData,

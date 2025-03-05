@@ -20,15 +20,19 @@ const ledgerSchema = new mongoose.Schema({
     amount: { type: Number },
     tax: { type: Number },
     total: { type: Number },
+    merchantTotal: { type: Number },
+    adminTotal: { type: Number },
     status: { type: String, default: 'Pending' },
     method: { type: String },
     username: { type: String },
     activity: { type: String },
     reason: { type: String },
     site: { type: String },
+    utrType: { type: String, default: "auto" },
     transactionReason: { type: String },
     approval: { type: Boolean, default: false }, // New field for transaction number
-    trnNo: { type: Number, unique: true }, // New field for transaction number
+    trnNo: { type: String, unique: true }, // New field for transaction number
+    trnStatus: { type: String, default: 'Transaction Pending' }, // New field for transaction number
 }, {
     timestamps: true
 });

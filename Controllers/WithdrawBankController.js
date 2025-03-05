@@ -1,11 +1,14 @@
-const Staff = require('../Models/StaffModel');
-const Merchant = require('../Models/MerchantModel');
+const WithdrawBank = require('../Models/WithdrawBankModel');
 const jwt = require('jsonwebtoken');
+
+
+
+
+
 
 // 1. Create 
 const createData = async (req, res) => {
     try {
-
 
         const token = req.header('Authorization')?.replace('Bearer ', '');
 
@@ -22,26 +25,13 @@ const createData = async (req, res) => {
             return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
         }
 
-        const email = await Staff.findOne({ email: req.body.email });
-        const emailMerch = await Merchant.findOne({ email: req.body.email });
-
-        if (email && emailMerch) {
-            return res.status(409).json({ message: 'Email already exists' });
-        }
-
-        const phone = await Staff.findOne({ phone: req.body.phone });
-
-        if (phone && req.body.phone) {
-            return res.status(409).json({ message: 'Phone already exists' });
-        }
-
-
 
         const image = req.file;
 
-        const data = await Staff.create({
-            ...req.body, image: image ? image?.path : "", merchantId: adminId
+        const data = await WithdrawBank.create({
+            ...req.body, merchantId: adminId, image: image ? image?.path : "",
         });
+
 
         return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
     }
@@ -51,30 +41,70 @@ const createData = async (req, res) => {
 };
 
 
+
+
+
+
+
 // 2. Get all s
-const getAllData = async (req, res) => {
+
+const getAllMerchantData = async (req, res) => {
     try {
         // Extract the token from the Authorization header
         const token = req.header('Authorization')?.replace('Bearer ', '');
-
-        if (!token) {
+        if (!token && !req.query.merchantId) {
             return res.status(401).json({ status: 'fail', message: 'No token provided' });
         }
 
-
+        // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const adminId = decoded.adminId;
+        let adminId = decoded.adminId;
 
+        // Allow overriding adminId from body if provided
+        if (req.query.merchantId) {
+            adminId = req.query.merchantId;
+        }
 
         if (!adminId) {
             return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
         }
 
-        // Find data created by the agent, sorted by `createdAt` in descending order
-        const data = await Staff.find({ merchantId: adminId }).sort({ createdAt: -1 });
+        const search = req.query.search || "";
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
 
+        const query = { merchantId: adminId };
 
-        return res.status(200).json({ status: 'ok', data });
+        if (req.query.status) {
+            query.status = req.query.status;
+        } else if (search) {
+            query.status = { $regex: ".*" + search + ".*", $options: "i" };
+        }
+
+        if (req.query.accountType) {
+            query.accountType = req.query.accountType;
+        }
+
+        // Fetch data
+        const data = await WithdrawBank.find(query)
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .skip((page - 1) * limit)
+            .exec();
+
+        const count = await WithdrawBank.countDocuments(query);
+
+        return res.status(200).json({
+            status: "ok",
+            data,
+            search,
+            page,
+            count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+            limit
+        });
+
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -83,11 +113,13 @@ const getAllData = async (req, res) => {
 
 
 
+
+
 // 3. Get  by id
 const getDataById = async (req, res) => {
     try {
         const id = req.params.id;
-        const data = await Staff.findById(id);
+        const data = await WithdrawBank.findById(id);
         return res.status(200).json({ status: 'ok', data });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -102,13 +134,11 @@ const updateData = async (req, res) => {
     try {
         let id = req.params.id;
 
-
-        let getImage = await Staff.findById(id);
+        let getImage = await WithdrawBank.findById(id);
         const image = req.file === undefined ? getImage?.image : req.file?.path;
 
-
-        const data = await Staff.findByIdAndUpdate(id,
-            { ...req.body, image: image },
+        const data = await WithdrawBank.findByIdAndUpdate(id,
+            { ...req.body, image },
             { new: true });
         return res.status(200).json({ status: 'ok', data });
     } catch (err) {
@@ -122,36 +152,10 @@ const updateData = async (req, res) => {
 const deleteData = async (req, res) => {
     try {
         const id = req.params.id;
-        await Staff.findByIdAndDelete(id);
+        await WithdrawBank.findByIdAndDelete(id);
         return res.status(200).json({ status: 'ok', message: 'Data deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
-    }
-};
-
-
-
-
-const loginData = async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const data = await Staff.findOne({ email });
-        if (!data) {
-            return res.status(400).json({ message: "Incorrect Email or Password" });
-        }
-        if (data?.block) {
-            return res.status(400).json({ message: "Staff blocked from merchant." });
-        }
-        if (data?.password !== password) {
-            return res.status(400).json({ message: "Incorrect Email or Password" })
-        }
-
-        const adminId = data?.merchantId;
-        const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
-        return res.status(200).json({ message: "Staff Logged In", token: token, data: data });
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server Error!" })
     }
 };
 
@@ -163,9 +167,8 @@ const loginData = async (req, res) => {
 
 module.exports = {
     createData,
-    getAllData,
+    getAllMerchantData,
     getDataById,
     updateData,
     deleteData,
-    loginData,
 };

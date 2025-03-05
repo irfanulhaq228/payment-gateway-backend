@@ -1,5 +1,5 @@
-const Staff = require('../Models/StaffModel');
-const Merchant = require('../Models/MerchantModel');
+const AdminStaff = require('../Models/AdminStaffModel');
+const Admin = require('../Models/AdminModel');
 const jwt = require('jsonwebtoken');
 
 // 1. Create 
@@ -19,28 +19,19 @@ const createData = async (req, res) => {
 
 
         if (!adminId) {
-            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
         }
 
-        const email = await Staff.findOne({ email: req.body.email });
-        const emailMerch = await Merchant.findOne({ email: req.body.email });
+        const email = await AdminStaff.findOne({ email: req.body.email });
+        const emailAdmin = await Admin.findOne({ email: req.body.email });
 
-        if (email && emailMerch) {
+        if (email && emailAdmin) {
             return res.status(409).json({ message: 'Email already exists' });
         }
 
-        const phone = await Staff.findOne({ phone: req.body.phone });
 
-        if (phone && req.body.phone) {
-            return res.status(409).json({ message: 'Phone already exists' });
-        }
-
-
-
-        const image = req.file;
-
-        const data = await Staff.create({
-            ...req.body, image: image ? image?.path : "", merchantId: adminId
+        const data = await AdminStaff.create({
+            ...req.body, adminId: adminId
         });
 
         return res.status(200).json({ status: 'ok', data, message: 'Data Created Successfully!' });
@@ -67,11 +58,11 @@ const getAllData = async (req, res) => {
 
 
         if (!adminId) {
-            return res.status(400).json({ status: 'fail', message: 'Merchant not found!' });
+            return res.status(400).json({ status: 'fail', message: 'Admin not found!' });
         }
 
         // Find data created by the agent, sorted by `createdAt` in descending order
-        const data = await Staff.find({ merchantId: adminId }).sort({ createdAt: -1 });
+        const data = await AdminStaff.find({ adminId: adminId }).sort({ createdAt: -1 });
 
 
         return res.status(200).json({ status: 'ok', data });
@@ -87,7 +78,7 @@ const getAllData = async (req, res) => {
 const getDataById = async (req, res) => {
     try {
         const id = req.params.id;
-        const data = await Staff.findById(id);
+        const data = await AdminStaff.findById(id);
         return res.status(200).json({ status: 'ok', data });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -103,12 +94,9 @@ const updateData = async (req, res) => {
         let id = req.params.id;
 
 
-        let getImage = await Staff.findById(id);
-        const image = req.file === undefined ? getImage?.image : req.file?.path;
 
-
-        const data = await Staff.findByIdAndUpdate(id,
-            { ...req.body, image: image },
+        const data = await AdminStaff.findByIdAndUpdate(id,
+            { ...req.body },
             { new: true });
         return res.status(200).json({ status: 'ok', data });
     } catch (err) {
@@ -122,7 +110,7 @@ const updateData = async (req, res) => {
 const deleteData = async (req, res) => {
     try {
         const id = req.params.id;
-        await Staff.findByIdAndDelete(id);
+        await AdminStaff.findByIdAndDelete(id);
         return res.status(200).json({ status: 'ok', message: 'Data deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -135,18 +123,18 @@ const deleteData = async (req, res) => {
 const loginData = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const data = await Staff.findOne({ email });
+        const data = await AdminStaff.findOne({ email });
         if (!data) {
             return res.status(400).json({ message: "Incorrect Email or Password" });
         }
         if (data?.block) {
-            return res.status(400).json({ message: "Staff blocked from merchant." });
+            return res.status(400).json({ message: "Staff blocked from admin." });
         }
         if (data?.password !== password) {
             return res.status(400).json({ message: "Incorrect Email or Password" })
         }
 
-        const adminId = data?.merchantId;
+        const adminId = data?.adminId;
         const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
         return res.status(200).json({ message: "Staff Logged In", token: token, data: data });
     } catch (error) {

@@ -8,6 +8,8 @@ const bankSchema = new mongoose.Schema({
     iban: { type: String, default: "" },
     accountLimit: { type: Number, required: false, default:0 },
     remainingLimit: { type: Number, required: false, default:0 },
+    noOfTrans: { type: Number, required: false, default:0 },
+    remainingTransLimit: { type: Number, required: false, default:0 },
     accountHolderName: { type: String, required: false },
     block: { type: Boolean, default: true },
     disable: { type: Boolean, default: false },

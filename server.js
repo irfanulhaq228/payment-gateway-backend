@@ -1,38 +1,52 @@
+const fs = require("fs");
+const cors = require("cors");
+const db = require("./db/db.js");
+const OpenAI = require("openai");
 const dotenv = require("dotenv");
 const express = require("express");
-const cors = require("cors");
+const Tesseract = require("tesseract.js");
 const bodyParser = require('body-parser');
-const db = require("./db/db.js");
-const pdfParse = require("pdf-parse");
-const fs = require("fs");
-const axios = require("axios");
-const PDFParser = require("pdf2json");
-const Ledger = require('./Models/LedgerModel');
 const Admin = require('./Models/AdminModel');
+const Ledger = require('./Models/LedgerModel');
+const { Server } = require('socket.io');
+const ledger = require("./socket/ledgerSocket.js");
+// const axios = require("axios");
+// const multer = require("multer");
+// const pdfParse = require("pdf-parse");
+// const PDFParser = require("pdf2json");
 
+const { upload } = require("./Multer/Multer.js");
 
-const AdminRouter = require("./Routes/adminRoutes.js");
-const LoginHistoryRouter = require("./Routes/LoginHistoryRoutes.js");
-const MerchantRouter = require("./Routes/MerchantRoutes.js");
-const StaffRouter = require("./Routes/StaffRoutes.js");
 const BankRouter = require("./Routes/BankRoutes.js");
+const AdminRouter = require("./Routes/adminRoutes.js");
+const StaffRouter = require("./Routes/StaffRoutes.js");
 const LedgerRouter = require("./Routes/LedgerRoutes.js");
 const TicketRouter = require("./Routes/TicketRoutes.js");
-const ApprovalRouter = require("./Routes/ApprovalRoutes.js");
-const TransactionSlipRoutes = require("./Routes/TransactionSlipRoutes.js");
 const websiteRoutes = require("./Routes/WebsiteRoutes.js");
+const ApprovalRouter = require("./Routes/ApprovalRoutes.js");
+const MerchantRouter = require("./Routes/MerchantRoutes.js");
 const TicketReplyRoutes = require("./Routes/TicketReplyRoutes.js");
-const { upload } = require("./Multer/Multer.js");
+const LoginHistoryRouter = require("./Routes/LoginHistoryRoutes.js");
+const TransactionSlipRoutes = require("./Routes/TransactionSlipRoutes.js");
+const WithdrawBankRoutes = require("./Routes/WithdrawBankRoutes.js");
+const WithdrawRoutes = require("./Routes/WithdrawRoutes.js");
+const ExchangeRoutes = require("./Routes/ExchangeRoutes.js");
+const AdminStaffRoutes = require("./Routes/AdminStaffRoutes.js");
+const LedgerLogRoutes = require("./Routes/LedgerLogRoutes.js");
+const BankLogRoutes = require("./Routes/BankLogRoutes.js");
+
 
 dotenv.config();
 const app = express();
 const router = express.Router();
 router.use(bodyParser.json());
+
 app.use(cors({
-    origin: '*',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Authorization, Content-Type',
+  origin: '*',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  allowedHeaders: 'Authorization, Content-Type',
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
@@ -40,11 +54,16 @@ app.use('/uploads', express.static('uploads'));
 db;
 
 app.get("/", (req, res) => {
-    res.json({ message: "Payment Gateway Backend is running correctly!!!" });
+  res.json({ message: "Payment Gateway Backend is running correctly!!!" });
 });
 
 
-
+app.use("/bankLog", BankLogRoutes);
+app.use("/ledgerLog", LedgerLogRoutes);
+app.use("/adminStaff", AdminStaffRoutes);
+app.use("/exchange", ExchangeRoutes);
+app.use("/withdrawBank", WithdrawBankRoutes);
+app.use("/withdraw", WithdrawRoutes);
 app.use("/ticketReply", TicketReplyRoutes);
 app.use("/website", websiteRoutes);
 app.use("/admin", AdminRouter);
@@ -105,7 +124,7 @@ app.use("/slip", TransactionSlipRoutes);
 //         - balance
 
 //         Ensure the response is valid JSON **without markdown formatting** like \`\`\`json.
-        
+
 //         Example Output:
 //         {
 //           "transactions": [
@@ -148,43 +167,98 @@ app.use("/slip", TransactionSlipRoutes);
 //     }
 // };
 
-
-
-const declineOldLedgers = async () => {
-    try {
-
-        const data = await adminModel.find();
-
-
-      const fiveMinutesAgo = new Date(Date.now() - data[0]?.timeMinute?data[0]?.timeMinute:5 * 60 * 1000);
-  
-      const result = await Ledger.updateMany(
-        {
-          createdAt: { $lte: fiveMinutesAgo },
-          updatedAt: { $eq: "$createdAt" }, // Ensures nothing was updated
-        },
-        { $set: { status: "Decline" } }
-      );
-  
-      console.log(`Updated ${result.modifiedCount} ledgers to 'declined' status.`);
-    } catch (error) {
-      console.error("Error updating ledgers:", error);
-    }
-  };
-
-
-
-  setTimeout(() => {
-    declineOldLedgers()
-  }, 3000);
-
-
-
-app.listen(process.env.PORT, () => {
-    console.log(`Server runs at port ${process.env.PORT}`);
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
+app.post("/extract-utr", upload.single("image"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No image uploaded" });
+  }
+  try {
+    const { data } = await Tesseract.recognize(req.file.path, "eng");
+
+    const extractedText = data.text;
+
+    const prompt = `
+      Extract only the UTR from the following text. If UTR is not present, extract "UPI Reference No" or "UPI transaction ID".
+      For UPI transaction  ID or UPI Reference No, the string is 12 digits so find out them in image.
+      If none of these are found, return null.
+      
+      ---TEXT START---
+      ${extractedText}
+      ---TEXT END---
+
+      Output only the extracted number, nothing else.
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 50,
+    });
+
+    const utr = response.choices[0].message.content.trim();
+
+    fs.unlinkSync(req.file.path);
+
+    res.json({ UTR: utr });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+const declineOldLedgers = async () => {
+  try {
+    const data = await Admin.find();
+
+
+    // Get the time threshold (default to 5 minutes if undefined)
+    const timeThreshold = data[0]?.timeMinute ?? 5;
+    const thresholdTime = new Date(Date.now() - timeThreshold * 60 * 1000);
+
+
+    // Update only ledgers that were created MORE THAN the provided time ago
+    const result = await Ledger.updateMany(
+      {
+        createdAt: { $lt: thresholdTime }, // Change here: Using `$lt` to get older ledgers
+        status: 'Pending',
+      },
+      { $set: { status: "Decline", trnStatus: 'Transaction Decline' } }
+    );
+
+  } catch (error) {
+    console.error("Error updating ledgers:", error);
+  }
+};
 
 
 
 
+
+setInterval(() => {
+  declineOldLedgers()
+}, 3000);
+
+
+
+
+const server = require('http').createServer(app)
+
+const io = new Server(server, {
+  cors: {
+    cors: true,
+  }
+})
+
+
+ledger(io)
+
+
+
+
+
+server.listen(process.env.PORT, () => {
+  console.log(`Server runs at port ${process.env.PORT}`);
+});

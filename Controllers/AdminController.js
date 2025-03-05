@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const adminModel = require("../Models/AdminModel");
+const AdminStaff = require("../Models/AdminStaffModel");
 var getIP = require('ipware')().get_ip;
 const { lookup } = require('geoip-lite');
 const loginHistoryModel = require("../Models/LoginHistoryModel");
@@ -20,45 +21,61 @@ const createAdmin = async (req, res) => {
         const token = jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
         return res.status(200).json({ message: "Admin created successfully", token });
     } catch (error) {
-        console.log(error);
         return res.status(500).json({ message: "Server Error!" })
     }
 };
 
+
+
+
 const loginAdmin = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const admin = await adminModel.findOne({ email });
-        if (!admin) {
+        const data = await adminModel.findOne({ email });
+        const dataStaff = await AdminStaff.findOne({ email }).populate(['adminId']);
+        if (data) {
+            if (data?.password !== password) {
+                return res.status(400).json({ message: "Incorrect Email or Password" })
+            }
+
+
+            var ipInfo = getIP(req);
+            const look = lookup(ipInfo?.clientIp);
+
+
+            const city = `${look?.city}, ${look?.region} ${look?.country}`
+
+            // Create new user with hashed password
+            await loginHistoryModel.create({
+                ip: ipInfo?.clientIp,
+                city,
+                adminId: data?._id,
+                loginDate: moment().format("DD MMM YYYY, hh:mm A")
+            });
+
+
+            const adminId = data?._id;
+            const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+            return res.status(200).json({ message: "Admin Logged In", token: token, data: data, type: 'admin' });
+
+        }
+        else if (dataStaff) {
+            if (dataStaff?.block) {
+                return res.status(400).json({ message: "Staff blocked from admin." });
+            }
+            if (dataStaff?.password !== password) {
+                return res.status(400).json({ message: "Incorrect Email or Password" })
+            }
+
+            const adminId = dataStaff?.adminId?._id;
+            const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+            return res.status(200).json({ message: "Staff Logged In", token: token, data: dataStaff, type: 'staff' });
+        } else {
             return res.status(400).json({ message: "Incorrect Email or Password" });
         }
-        if (admin?.password !== password) {
-            return res.status(400).json({ message: "Incorrect Email or Password" })
-        }
 
 
-        var ipInfo = getIP(req);
-        console.log(ipInfo);
-        const look = lookup(ipInfo?.clientIp);
-
-
-        const city = `${look?.city}, ${look?.region} ${look?.country}`
-
-        // Create new user with hashed password
-        await loginHistoryModel.create({
-            ip: ipInfo?.clientIp,
-            city,
-            adminId: admin?._id,
-            loginDate: moment().format("DD MMM YYYY, hh:mm A")
-        });
-
-
-
-        const adminId = admin?._id;
-        const token = jwt.sign({ adminId }, process.env.JWT_SECRET, { expiresIn: '30d' });
-        return res.status(200).json({ message: "Admin Logged In", token: token, data: admin });
     } catch (error) {
-        console.log(error);
         return res.status(500).json({ message: "Server Error!" })
     }
 };
@@ -107,7 +124,6 @@ const getAllAdmins = async (req, res) => {
 
         return res.status(200).json({ message: "Data Sent Successfully", data: admin });
     } catch (error) {
-        console.log(error);
         return res.status(500).json({ message: "Server Error!" })
     }
 };

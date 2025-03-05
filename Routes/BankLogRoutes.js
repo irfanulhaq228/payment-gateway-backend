@@ -1,5 +1,5 @@
 
-const { getAllData, createData, getDataById, updateData, deleteData }=require('../Controllers/LoginHistoryController')
+const { getAllData, createData, getDataById, updateData, deleteData }=require('../Controllers/BankLogController')
 const authenticate = require('../Middleware/auth')
 
 const router=require('express').Router()

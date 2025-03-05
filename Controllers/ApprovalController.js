@@ -13,7 +13,7 @@ const createData = async (req, res) => {
 
 
             await Ledger.findByIdAndUpdate(req.body.ledgerId,
-                { approval: false },
+                { approval: false, trnStatus: "Points Pending" },
                 { new: true });
 
             await Approval.findByIdAndDelete(checkdata?._id);
@@ -27,7 +27,7 @@ const createData = async (req, res) => {
             });
 
             await Ledger.findByIdAndUpdate(req.body.ledgerId,
-                { approval: true },
+                { approval: true, trnStatus: "Points Approved" },
                 { new: true });
 
 
